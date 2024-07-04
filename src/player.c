@@ -67,6 +67,9 @@ float player_intersection_dist = 1024.0F;
 
 struct Player players[PLAYERS_MAX];
 
+unsigned int player_visibility_queries[PLAYERS_MAX];
+bool visible_players[PLAYERS_MAX];
+
 #define FALL_DAMAGE_VELOCITY 0.58F
 #define FALL_SLOW_DOWN 0.24F
 #define SQRT 0.70710678F
@@ -77,6 +80,12 @@ void player_init() {
 	for(int k = 0; k < PLAYERS_MAX; k++) {
 		player_reset(&players[k]);
 		players[k].score = 0;
+
+		if (settings.spec_esp) {
+			glGenQueries(1, &player_visibility_queries[k]);
+			glBeginQuery(GL_SAMPLES_PASSED, player_visibility_queries[k]);
+			glEndQuery(GL_SAMPLES_PASSED);
+		}
 	}
 }
 
@@ -309,6 +318,25 @@ void player_render_all() {
 	ray.direction.x = sin(camera_rot_x) * sin(camera_rot_y);
 	ray.direction.y = cos(camera_rot_y);
 	ray.direction.z = cos(camera_rot_x) * sin(camera_rot_y);
+	
+	//i have no idea what im doing, trying to copy as much from dank as possible in hopes that this works at all.
+	//someone with actual dev skills pls fix my code
+	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+	glDepthMask(GL_FALSE);
+	if (settings.spec_esp && players[local_player_id].team == TEAM_SPECTATOR)
+		for (int k = 0; k < PLAYERS_MAX; k++) {
+			//determine visibility based on last frame
+			int samples_passed;
+			glGetQueryObjectuiv(player_visibility_queries[k], GL_QUERY_RESULT, &samples_passed);
+			visible_players[k] = (samples_passed > 0);
+			
+			//get the new query going
+			glBeginQuery(GL_SAMPLES_PASSED, player_visibility_queries[k]);
+			player_render_occluded(players + k, k); //TODO: optimised occlusion test
+			glEndQuery(GL_SAMPLES_PASSED);
+		}
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glDepthMask(GL_TRUE);
 
 	for(int k = 0; k < PLAYERS_MAX; k++) {
 		if(!players[k].connected || players[k].team == TEAM_SPECTATOR)
@@ -400,7 +428,19 @@ void player_render_all() {
 			   && distance2D(players[k].pos.x, players[k].pos.z, camera_x, camera_z)
 				   <= pow(settings.render_distance + 2.0F, 2.0F)) {
 				struct player_intersection intersects = {0};
-				player_render(players + k, k);
+				
+				if (!settings.spec_esp || players[local_player_id].team != TEAM_SPECTATOR) {
+					player_render(players + k, k);
+				} else {
+					if (visible_players[k])
+						player_render(players + k, k);
+					else {
+						glDisable(GL_DEPTH_TEST);
+						player_render_occluded(players + k, k);
+						glEnable(GL_DEPTH_TEST);
+					}
+				}
+				
 				player_collision(players + k, &ray, &intersects);
 				if(player_intersection_exists(&intersects)) {
 					float d;
@@ -840,6 +880,198 @@ void player_render(struct Player* p, int id) {
 			}
 			break;
 		case TOOL_GRENADE: kv6_render(&model_grenade, p->team); break;
+	}
+
+	vec4 v = {0.1F, 0, -0.3F, 1};
+	matrix_vector(matrix_model, v);
+	vec4 v2 = {1.1F, 0, -0.3F, 1};
+	matrix_vector(matrix_model, v2);
+
+	p->gun_pos.x = v[0];
+	p->gun_pos.y = v[1];
+	p->gun_pos.z = v[2];
+
+	p->casing_dir.x = v[0] - v2[0];
+	p->casing_dir.y = v[1] - v2[1];
+	p->casing_dir.z = v[2] - v2[2];
+
+	matrix_pop(matrix_model);
+}
+
+void player_render_occluded(struct Player* p, int id) {
+	if(!p->alive)
+		return;
+	
+	kv6_calclight(p->pos.x, p->pos.y, p->pos.z);
+	
+	//TODO: dank style player labels
+
+	float l = sqrt(distance3D(p->orientation_smooth.x, p->orientation_smooth.y, p->orientation_smooth.z, 0, 0, 0));
+	float ox = p->orientation_smooth.x / l;
+	float oy = p->orientation_smooth.y / l;
+	float oz = p->orientation_smooth.z / l;
+
+	float time = window_time() * 1000.0F;
+
+	struct kv6_t* torso = p->input.keys.crouch ? &model_playertorsoc : &model_playertorso;
+	struct kv6_t* leg = p->input.keys.crouch ? &model_playerlegc : &model_playerleg;
+	float height = player_height(p);
+	if(id != local_player_id)
+		height -= 0.25F;
+
+	float len = sqrt(pow(p->orientation.x, 2.0F) + pow(p->orientation.z, 2.0F));
+	float fx = p->orientation.x / len;
+	float fy = p->orientation.z / len;
+
+	float a = (p->physics.velocity.x * fx + fy * p->physics.velocity.z) / (fx * fx + fy * fy);
+	float b = (p->physics.velocity.z - fy * a) / fx;
+	a /= 0.25F;
+	b /= 0.25F;
+
+	int render_body = (id != local_player_id || !p->alive || camera_mode != CAMERAMODE_FPS)
+		&& !((camera_mode == CAMERAMODE_BODYVIEW || camera_mode == CAMERAMODE_SPECTATOR)
+			 && cameracontroller_bodyview_mode && cameracontroller_bodyview_player == id);
+	int render_fpv = (id == local_player_id && camera_mode == CAMERAMODE_FPS)
+		|| ((camera_mode == CAMERAMODE_BODYVIEW || camera_mode == CAMERAMODE_SPECTATOR)
+			&& cameracontroller_bodyview_mode && cameracontroller_bodyview_player == id);
+
+	if(render_body) {
+		matrix_push(matrix_model);
+		matrix_translate(matrix_model, p->physics.eye.x, p->physics.eye.y + height, p->physics.eye.z);
+		float head_scale
+			= sqrt(pow(p->orientation.x, 2.0F) + pow(p->orientation.y, 2.0F) + pow(p->orientation.z, 2.0F));
+		matrix_translate(matrix_model, 0.0F,
+						 model_playerhead.zpiv * (head_scale * model_playerhead.scale - model_playerhead.scale), 0.0F);
+		matrix_scale3(matrix_model, head_scale);
+		matrix_pointAt(matrix_model, ox, oy, oz);
+		matrix_rotate(matrix_model, 90.0F, 0.0F, 1.0F, 0.0F);
+		matrix_upload();
+		kv6_render_occluded(&model_playerhead, p->team);
+		matrix_pop(matrix_model);
+
+		matrix_push(matrix_model);
+		matrix_translate(matrix_model, p->physics.eye.x, p->physics.eye.y + height, p->physics.eye.z);
+		matrix_pointAt(matrix_model, ox, 0.0F, oz);
+		matrix_rotate(matrix_model, 90.0F, 0.0F, 1.0F, 0.0F);
+		matrix_upload();
+		kv6_render_occluded(torso, p->team);
+		matrix_pop(matrix_model);
+
+		if(gamestate.gamemode_type == GAMEMODE_CTF
+		   && ((gamestate.gamemode.ctf.team_1_intel
+				&& gamestate.gamemode.ctf.team_1_intel_location.held.player_id == id)
+			   || (gamestate.gamemode.ctf.team_2_intel
+				   && gamestate.gamemode.ctf.team_2_intel_location.held.player_id == id))) {
+			matrix_push(matrix_model);
+			matrix_translate(matrix_model, p->physics.eye.x, p->physics.eye.y + height, p->physics.eye.z);
+			matrix_pointAt(matrix_model, -oz, 0.0F, ox);
+			matrix_translate(
+				matrix_model, (torso->xsiz - model_intel.xsiz) * 0.5F * torso->scale,
+				-(torso->zpiv - torso->zsiz * 0.5F + model_intel.zsiz * (p->input.keys.crouch ? 0.125F : 0.25F))
+					* torso->scale,
+				(torso->ypiv + model_intel.ypiv) * torso->scale);
+			matrix_scale3(matrix_model, torso->scale / model_intel.scale);
+			if(p->input.keys.crouch) {
+				matrix_rotate(matrix_model, -45.0F, 1.0F, 0.0F, 0.0F);
+			}
+			matrix_upload();
+			int t = TEAM_SPECTATOR;
+			if(gamestate.gamemode.ctf.team_1_intel && gamestate.gamemode.ctf.team_1_intel_location.held.player_id == id)
+				t = TEAM_1;
+			if(gamestate.gamemode.ctf.team_2_intel && gamestate.gamemode.ctf.team_2_intel_location.held.player_id == id)
+				t = TEAM_2;
+			kv6_render_occluded(&model_intel, t);
+			matrix_pop(matrix_model);
+		}
+
+		matrix_push(matrix_model);
+		matrix_translate(matrix_model, p->physics.eye.x, p->physics.eye.y + height, p->physics.eye.z);
+		matrix_pointAt(matrix_model, ox, 0.0F, oz);
+		matrix_rotate(matrix_model, 90.0F, 0.0F, 1.0F, 0.0F);
+		matrix_translate(matrix_model, torso->xsiz * 0.1F * 0.5F - leg->xsiz * 0.1F * 0.5F,
+						 -torso->zsiz * 0.1F * (p->input.keys.crouch ? 0.6F : 1.0F),
+						 p->input.keys.crouch ? (-torso->zsiz * 0.1F * 0.75F) : 0.0F);
+		matrix_rotate(matrix_model, 45.0F * foot_function(p) * a, 1.0F, 0.0F, 0.0F);
+		matrix_rotate(matrix_model, 45.0F * foot_function(p) * b, 0.0F, 0.0F, 1.0F);
+		matrix_upload();
+		kv6_render_occluded(leg, p->team);
+		matrix_pop(matrix_model);
+
+		matrix_push(matrix_model);
+		matrix_translate(matrix_model, p->physics.eye.x, p->physics.eye.y + height, p->physics.eye.z);
+		matrix_pointAt(matrix_model, ox, 0.0F, oz);
+		matrix_rotate(matrix_model, 90.0F, 0.0F, 1.0F, 0.0F);
+		matrix_translate(matrix_model, -torso->xsiz * 0.1F * 0.5F + leg->xsiz * 0.1F * 0.5F,
+						 -torso->zsiz * 0.1F * (p->input.keys.crouch ? 0.6F : 1.0F),
+						 p->input.keys.crouch ? (-torso->zsiz * 0.1F * 0.75F) : 0.0F);
+		matrix_rotate(matrix_model, -45.0F * foot_function(p) * a, 1.0F, 0.0F, 0.0F);
+		matrix_rotate(matrix_model, -45.0F * foot_function(p) * b, 0.0F, 0.0F, 1.0F);
+		matrix_upload();
+		kv6_render_occluded(leg, p->team);
+		matrix_pop(matrix_model);
+	}
+
+	matrix_push(matrix_model);
+	matrix_translate(matrix_model, p->physics.eye.x, p->physics.eye.y + height, p->physics.eye.z);
+	if(!render_fpv)
+		matrix_translate(matrix_model, 0.0F, p->input.keys.crouch * 0.1F - 0.1F * 2, 0.0F);
+	matrix_pointAt(matrix_model, ox, oy, oz);
+	matrix_rotate(matrix_model, 90.0F, 0.0F, 1.0F, 0.0F);
+	if(render_fpv)
+		matrix_translate(matrix_model, 0.0F, -2 * 0.1F, -2 * 0.1F);
+
+	if(render_fpv && p->alive) {
+		float speed = sqrt(pow(p->physics.velocity.x, 2) + pow(p->physics.velocity.z, 2)) / 0.25F;
+		float* f = player_tool_translate_func(p);
+		matrix_translate(matrix_model, f[0], f[1], 0.1F * player_swing_func(time / 1000.0F) * speed + f[2]);
+	}
+
+	if(p->input.keys.sprint && !p->input.keys.crouch)
+		matrix_rotate(matrix_model, 45.0F, 1.0F, 0.0F, 0.0F);
+
+	if(render_fpv && window_time() - p->item_showup < 0.5F)
+		matrix_rotate(matrix_model, 45.0F - (window_time() - p->item_showup) * 90.0F, 1.0F, 0.0F, 0.0F);
+
+	if(!(p->held_item == TOOL_SPADE && render_fpv && camera_mode == CAMERAMODE_FPS)) {
+		float* angles = player_tool_func(p);
+		matrix_rotate(matrix_model, angles[0], 1.0F, 0.0F, 0.0F);
+		matrix_rotate(matrix_model, angles[1], 0.0F, 1.0F, 0.0F);
+	}
+	if(render_body || settings.player_arms) {
+		matrix_upload();
+		kv6_render_occluded(&model_playerarms, p->team);
+	}
+
+	matrix_translate(matrix_model, -3.5F * 0.1F + 0.01F, 0.0F, 10 * 0.1F);
+	if(p->held_item == TOOL_SPADE && render_fpv && window_time() - p->item_showup >= 0.5F) {
+		float* angles = player_tool_func(p);
+		matrix_translate(matrix_model, 0.0F, (model_spade.zpiv - model_spade.zsiz) * 0.05F, 0.0F);
+		matrix_rotate(matrix_model, angles[0], 1.0F, 0.0F, 0.0F);
+		matrix_rotate(matrix_model, angles[1], 0.0F, 1.0F, 0.0F);
+		matrix_translate(matrix_model, 0.0F, -(model_spade.zpiv - model_spade.zsiz) * 0.05F, 0.0F);
+	}
+
+	matrix_upload();
+	switch(p->held_item) {
+		case TOOL_SPADE: kv6_render_occluded(&model_spade, p->team); break;
+		case TOOL_BLOCK:
+			model_block.red = p->block.red / 255.0F;
+			model_block.green = p->block.green / 255.0F;
+			model_block.blue = p->block.blue / 255.0F;
+			kv6_render_occluded(&model_block, p->team);
+			break;
+		case TOOL_GUN:
+			// matrix_translate(matrix_model, 3.0F*0.1F-0.01F+0.025F,0.25F,-0.0625F);
+			// matrix_upload();
+			if(!(render_fpv && p->input.buttons.rmb)) {
+				switch(p->weapon) {
+					case WEAPON_RIFLE: kv6_render_occluded(&model_semi, p->team); break;
+					case WEAPON_SMG: kv6_render_occluded(&model_smg, p->team); break;
+					case WEAPON_SHOTGUN: kv6_render_occluded(&model_shotgun, p->team); break;
+				}
+			}
+			break;
+		case TOOL_GRENADE: kv6_render_occluded(&model_grenade, p->team); break;
 	}
 
 	vec4 v = {0.1F, 0, -0.3F, 1};
