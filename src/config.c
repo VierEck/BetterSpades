@@ -162,6 +162,8 @@ static int config_read_key(void* user, const char* section, const char* name, co
 			settings.chat_shadow = atoi(value);
 		} else if(!strcmp(name, "show_player_arms")) {
 			settings.player_arms = atoi(value);
+		} else if(!strcmp(name, "spectator_esp")) {
+			settings.spec_esp = atoi(value);
 		}
 	}
 	if(!strcmp(section, "controls")) {
@@ -596,5 +598,14 @@ void config_reload() {
 				 .max = 1,
 				 .name = "Show news",
 				 .help = "Show news on server list",
+			 });
+	list_add(&config_settings,
+			 &(struct config_setting) {
+				 .value = &settings_tmp.spec_esp,
+				 .type = CONFIG_TYPE_INT,
+				 .min = 0,
+				 .max = 1,
+				 .name = "Spectator ESP",
+				 .help = "Helps identifying cheaters",
 			 });
 }
