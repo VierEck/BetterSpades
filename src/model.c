@@ -622,9 +622,12 @@ void kv6_render(struct kv6_t* kv6, unsigned char team) {
 void kv6_render_occluded(struct kv6_t* kv6, unsigned char team) {
 	if(!kv6)
 		return;
-	if(team == TEAM_SPECTATOR)
-		team = 2;
-	glx_disable_sphericalfog();
+	kv6_render_occlusion_test(kv6, team); //for now occluded is same as test
+}
+
+void kv6_render_occlusion_test(struct kv6_t* kv6, unsigned char team) {
+	if(!kv6)
+		return;
 	if(!settings.voxlap_models) {
 		if(!kv6->has_display_list) {
 			struct tesselator tess_color;
@@ -640,24 +643,14 @@ void kv6_render_occluded(struct kv6_t* kv6, unsigned char team) {
 
 			struct kv6_voxel* voxel = kv6->voxels;
 			for(size_t k = 0; k < kv6->voxel_count; k++, voxel++) {
-				int b = 0;
-				int g = 0;
-				int r = 0;
-				int a = alpha(voxel->color);
-
 				struct tesselator* tess = &tess_color;
-
-				if((r | g | b) == 0) {
-					tess = &tess_team;
-				}
-
-				tesselator_set_normal(tess, kv6_normals[a][0] * 128, -kv6_normals[a][2] * 128, kv6_normals[a][1] * 128);
+				tesselator_set_normal(tess, kv6_normals[1][0] * 128, -kv6_normals[1][2] * 128, kv6_normals[1][1] * 128);
 
 				if(voxel->visfaces & KV6_VIS_POS_Y) {
 					size_t max_x, max_z;
 					greedy_mesh(kv6, voxel, marked, &max_x, &max_z, KV6_VIS_POS_Y);
 
-					tesselator_set_color(tess, rgba(r, g, b, 0));
+					tesselator_set_color(tess, rgba(0, 0, 0, 1));
 					tesselator_addi_cube_face_adv(tess, CUBE_FACE_Y_P, voxel->x, voxel->z, voxel->y, max_x, 1, max_z);
 				}
 
@@ -665,7 +658,7 @@ void kv6_render_occluded(struct kv6_t* kv6, unsigned char team) {
 					size_t max_x, max_z;
 					greedy_mesh(kv6, voxel, marked, &max_x, &max_z, KV6_VIS_NEG_Y);
 
-					tesselator_set_color(tess, rgba(r, g, b, 0));
+					tesselator_set_color(tess, rgba(0, 0, 0, 1));
 					tesselator_addi_cube_face_adv(tess, CUBE_FACE_Y_N, voxel->x, voxel->z, voxel->y, max_x, 1, max_z);
 				}
 
@@ -673,36 +666,32 @@ void kv6_render_occluded(struct kv6_t* kv6, unsigned char team) {
 					size_t max_x, max_y;
 					greedy_mesh(kv6, voxel, marked, &max_x, &max_y, KV6_VIS_NEG_Z);
 
-					tesselator_set_color(tess, rgba(r, g, b, 0));
-					tesselator_addi_cube_face_adv(tess, CUBE_FACE_Z_N, voxel->x, voxel->z - (max_y - 1), voxel->y,
-												  max_x, max_y, 1);
+					tesselator_set_color(tess, rgba(0, 0, 0, 1));
+					tesselator_addi_cube_face_adv(tess, CUBE_FACE_Z_N, voxel->x, voxel->z - (max_y - 1), voxel->y, max_x, max_y, 1);
 				}
 
 				if(voxel->visfaces & KV6_VIS_POS_Z) {
 					size_t max_x, max_y;
 					greedy_mesh(kv6, voxel, marked, &max_x, &max_y, KV6_VIS_POS_Z);
 
-					tesselator_set_color(tess, rgba(r, g, b, 0));
-					tesselator_addi_cube_face_adv(tess, CUBE_FACE_Z_P, voxel->x, voxel->z - (max_y - 1), voxel->y,
-												  max_x, max_y, 1);
+					tesselator_set_color(tess, rgba(0, 0, 0, 1));
+					tesselator_addi_cube_face_adv(tess, CUBE_FACE_Z_P, voxel->x, voxel->z - (max_y - 1), voxel->y, max_x, max_y, 1);
 				}
 
 				if(voxel->visfaces & KV6_VIS_NEG_X) {
 					size_t max_y, max_z;
 					greedy_mesh(kv6, voxel, marked, &max_y, &max_z, KV6_VIS_NEG_X);
 
-					tesselator_set_color(tess, rgba(r, g, b, 0));
-					tesselator_addi_cube_face_adv(tess, CUBE_FACE_X_N, voxel->x, voxel->z - (max_y - 1), voxel->y, 1,
-												  max_y, max_z);
+					tesselator_set_color(tess, rgba(0, 0, 0, 1));
+					tesselator_addi_cube_face_adv(tess, CUBE_FACE_X_N, voxel->x, voxel->z - (max_y - 1), voxel->y, 1, max_y, max_z);
 				}
 
 				if(voxel->visfaces & KV6_VIS_POS_X) {
 					size_t max_y, max_z;
 					greedy_mesh(kv6, voxel, marked, &max_y, &max_z, KV6_VIS_POS_X);
 
-					tesselator_set_color(tess, rgba(r, g, b, 0));
-					tesselator_addi_cube_face_adv(tess, CUBE_FACE_X_P, voxel->x, voxel->z - (max_y - 1), voxel->y, 1,
-												  max_y, max_z);
+					tesselator_set_color(tess, rgba(0, 0, 0, 1));
+					tesselator_addi_cube_face_adv(tess, CUBE_FACE_X_P, voxel->x, voxel->z - (max_y - 1), voxel->y, 1, max_y, max_z);
 				}
 			}
 
@@ -714,14 +703,7 @@ void kv6_render_occluded(struct kv6_t* kv6, unsigned char team) {
 
 			kv6->has_display_list = true;
 		} else {
-			glEnable(GL_LIGHTING);
-			glEnable(GL_LIGHT0);
-			glEnable(GL_COLOR_MATERIAL);
-#ifndef OPENGL_ES
-			glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
-#endif
-			glEnable(GL_NORMALIZE);
-
+			//is there anything unnecessary that we can delete? i dont wanna read all the docs -_-
 			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE);
 			glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB, GL_MODULATE);
 			glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA, GL_MODULATE);
@@ -744,9 +726,6 @@ void kv6_render_occluded(struct kv6_t* kv6, unsigned char team) {
 			matrix_upload();
 
 			glx_displaylist_draw(kv6->display_list + 0, GLX_DISPLAYLIST_NORMAL);
-
-			glTexEnvfv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_COLOR, (float[]) {0, 0, 0, 1});
-
 			glx_displaylist_draw(kv6->display_list + 1, GLX_DISPLAYLIST_NORMAL);
 
 			matrix_pop(matrix_model);
@@ -754,18 +733,9 @@ void kv6_render_occluded(struct kv6_t* kv6, unsigned char team) {
 			glBindTexture(GL_TEXTURE_2D, 0);
 			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 			glDisable(GL_TEXTURE_2D);
-
-			glDisable(GL_NORMALIZE);
-			glDisable(GL_COLOR_MATERIAL);
-			glDisable(GL_LIGHT0);
-			glDisable(GL_LIGHTING);
 		}
 	} else {
 		// render like on voxlap
 		//TODO
 	}
-}
-
-void kv6_render_occlusion_test(struct kv6_t* kv6, unsigned char team) {
-	//TODO
 }

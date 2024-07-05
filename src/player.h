@@ -174,6 +174,7 @@ void player_update(float dt, int locked);
 void player_render_all(void);
 void player_render(struct Player* p, int id);
 void player_render_occluded(struct Player* p, int id);
+void player_render_occlusion_test(struct Player* p, int id);
 void player_collision(const struct Player* p, Ray* ray, struct player_intersection* intersects);
 void player_reset(struct Player* p);
 int player_move(struct Player* p, float fsynctics, int id);
