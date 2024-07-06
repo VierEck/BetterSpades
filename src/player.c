@@ -323,7 +323,7 @@ void player_render_all() {
 	//someone with actual dev skills pls fix my code
 	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 	glDepthMask(GL_FALSE);
-	if (settings.spec_esp && players[local_player_id].team == TEAM_SPECTATOR)
+	if (settings.spec_esp && players[local_player_id].team == TEAM_SPECTATOR) {
 		for (int k = 0; k < PLAYERS_MAX; k++) {
 			if (!players[k].connected || !players[k].alive || players[k].team == TEAM_SPECTATOR || k == local_player_id 
 			    || (cameracontroller_bodyview_mode && k == cameracontroller_bodyview_player)) {
@@ -339,6 +339,7 @@ void player_render_all() {
 			player_render_occlusion_test(players + k, k, false);
 			glEndQuery(GL_SAMPLES_PASSED);
 		}
+	}
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	glDepthMask(GL_TRUE);
 
@@ -904,9 +905,6 @@ void player_render(struct Player* p, int id) {
 
 void player_render_occluded(struct Player* p, int id) {
 	//TODO: dank style player labels
-	//TODO: dank style outlines
-	//TODO: no fog mixing, im aware of glx_disable_sphericalfog, but that will just remove fog mixing for all players
-	//      and in combination with glx_enable_sphericalfog it just breaks the visible player render
 
 	player_render_occlusion_test(p, id, true);
 	player_render_occlusion_test(p, id, false);

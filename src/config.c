@@ -88,6 +88,8 @@ void config_save() {
 	config_seti("client", "hold_down_sights", settings.hold_down_sights);
 	config_seti("client", "chat_shadow", settings.chat_shadow);
 	config_seti("client", "show_player_arms", settings.player_arms);
+	config_seti("client", "spec_esp", settings.spec_esp);
+	config_seti("client", "no_fog_mix", settings.no_fog_mix);
 
 	for(int k = 0; k < list_size(&config_keys); k++) {
 		struct config_key_pair* e = list_get(&config_keys, k);
@@ -164,6 +166,8 @@ static int config_read_key(void* user, const char* section, const char* name, co
 			settings.player_arms = atoi(value);
 		} else if(!strcmp(name, "spectator_esp")) {
 			settings.spec_esp = atoi(value);
+		} else if(!strcmp(name, "no_fog_mix")) {
+			settings.no_fog_mix = atoi(value);
 		}
 	}
 	if(!strcmp(section, "controls")) {
@@ -607,5 +611,14 @@ void config_reload() {
 				 .max = 1,
 				 .name = "Spectator ESP",
 				 .help = "Helps identifying cheaters",
+			 });
+	list_add(&config_settings,
+			 &(struct config_setting) {
+				 .value = &settings_tmp.spec_esp,
+				 .type = CONFIG_TYPE_INT,
+				 .min = 0,
+				 .max = 1,
+				 .name = "Spectator NoFogMixing",
+				 .help = "dont blend player with fog",
 			 });
 }
