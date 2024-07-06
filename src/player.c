@@ -324,6 +324,8 @@ void player_render_all() {
 	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 	glDepthMask(GL_FALSE);
 	if (settings.spec_esp && players[local_player_id].team == TEAM_SPECTATOR) {
+		if (settings.no_fog_mix)
+			glx_disable_sphericalfog();
 		for (int k = 0; k < PLAYERS_MAX; k++) {
 			if (!players[k].connected || !players[k].alive || players[k].team == TEAM_SPECTATOR || k == local_player_id 
 			    || (cameracontroller_bodyview_mode && k == cameracontroller_bodyview_player)) {
