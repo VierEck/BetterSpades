@@ -319,31 +319,31 @@ void player_render_all() {
 	ray.direction.y = cos(camera_rot_y);
 	ray.direction.z = cos(camera_rot_x) * sin(camera_rot_y);
 	
-	//i have no idea what im doing, trying to copy as much from dank as possible in hopes that this works at all.
-	//someone with actual dev skills pls fix my code
-	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-	glDepthMask(GL_FALSE);
-	if (settings.spec_esp && players[local_player_id].team == TEAM_SPECTATOR) {
+	if (players[local_player_id].team == TEAM_SPECTATOR) {
 		if (settings.no_fog_mix)
 			glx_disable_sphericalfog();
-		for (int k = 0; k < PLAYERS_MAX; k++) {
-			if (!players[k].connected || !players[k].alive || players[k].team == TEAM_SPECTATOR || k == local_player_id 
-			    || (cameracontroller_bodyview_mode && k == cameracontroller_bodyview_player)) {
-				visible_players[k] = true;
-				continue;
+		if (settings.spec_esp) {
+			glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+			glDepthMask(GL_FALSE);
+			for (int k = 0; k < PLAYERS_MAX; k++) {
+				if (!players[k].connected || !players[k].alive || players[k].team == TEAM_SPECTATOR || k == local_player_id 
+					|| (cameracontroller_bodyview_mode && k == cameracontroller_bodyview_player)) {
+					visible_players[k] = true;
+					continue;
+				}
+				//determine visibility based on last frame
+				int samples_passed;
+				glGetQueryObjectuiv(player_visibility_queries[k], GL_QUERY_RESULT, &samples_passed);
+				visible_players[k] = (samples_passed > 0);
+				//get the new query going
+				glBeginQuery(GL_SAMPLES_PASSED, player_visibility_queries[k]);
+				player_render_occlusion_test(players + k, k, false);
+				glEndQuery(GL_SAMPLES_PASSED);
 			}
-			//determine visibility based on last frame
-			int samples_passed;
-			glGetQueryObjectuiv(player_visibility_queries[k], GL_QUERY_RESULT, &samples_passed);
-			visible_players[k] = (samples_passed > 0);
-			//get the new query going
-			glBeginQuery(GL_SAMPLES_PASSED, player_visibility_queries[k]);
-			player_render_occlusion_test(players + k, k, false);
-			glEndQuery(GL_SAMPLES_PASSED);
+			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+			glDepthMask(GL_TRUE);
 		}
 	}
-	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-	glDepthMask(GL_TRUE);
 
 	for(int k = 0; k < PLAYERS_MAX; k++) {
 		if(!players[k].connected || players[k].team == TEAM_SPECTATOR)
