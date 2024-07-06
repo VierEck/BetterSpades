@@ -336,7 +336,7 @@ void player_render_all() {
 			visible_players[k] = (samples_passed > 0);
 			//get the new query going
 			glBeginQuery(GL_SAMPLES_PASSED, player_visibility_queries[k]);
-			player_render_occlusion_test(players + k, k);
+			player_render_occlusion_test(players + k, k, false);
 			glEndQuery(GL_SAMPLES_PASSED);
 		}
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -908,13 +908,53 @@ void player_render_occluded(struct Player* p, int id) {
 	//TODO: no fog mixing, im aware of glx_disable_sphericalfog, but that will just remove fog mixing for all players
 	//      and in combination with glx_enable_sphericalfog it just breaks the visible player render
 
-	player_render_occlusion_test(p, id); //for now occluded is same as test
+	player_render_occlusion_test(p, id, true);
+	player_render_occlusion_test(p, id, false);
 }
 
-void player_render_occlusion_test(struct Player* p, int id) {
+void player_render_occlusion_test(struct Player* p, int id, bool is_outline) {
 	//TODO: dry, seperate matrix stuff from render stuff somehow maybe?
 	//      i could just put everything in player_render but then there would be dozens of "if(occluded) else if(occlusion_test) else..."
 	//      i dont like that, but i dont like repeating stuff either
+	
+	if (is_outline) {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glEnable(GL_POLYGON_OFFSET_LINE);
+		glPolygonOffset(1, 1);
+		glLineWidth(3);
+	}
+	
+	int wh_color = glx_shader(
+		"void main(){\n"
+		"gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;\n"
+		"}",
+
+		"uniform vec3 t_color;\n"
+		"void main(){\n"
+		"gl_FragColor = vec4(t_color, 1.0);\n"
+		"}"
+	);
+	float t_color[3];
+	if (!is_outline) {
+		t_color[0] = 0;
+		t_color[1] = 0;
+		t_color[2] = 0;
+	} else {
+		if (p->team == TEAM_1) {
+			t_color[0] = gamestate.team_1.red;
+			t_color[1] = gamestate.team_1.green;
+			t_color[2] = gamestate.team_1.blue;
+		} else {
+			t_color[0] = gamestate.team_2.red;
+			t_color[1] = gamestate.team_2.green;
+			t_color[2] = gamestate.team_2.blue;
+		}
+		t_color[0] = t_color[0]/255.f;
+		t_color[1] = t_color[1]/255.f;
+		t_color[2] = t_color[2]/255.f;
+	}
+	glUseProgram(wh_color);
+	glUniform3f(glGetUniformLocation(wh_color, "t_color"), t_color[0],t_color[1],t_color[2]);
 	
 	float l = sqrt(distance3D(p->orientation_smooth.x, p->orientation_smooth.y, p->orientation_smooth.z, 0, 0, 0));
 	float ox = p->orientation_smooth.x / l;
@@ -947,7 +987,7 @@ void player_render_occlusion_test(struct Player* p, int id) {
 	matrix_pointAt(matrix_model, ox, oy, oz);
 	matrix_rotate(matrix_model, 90.0F, 0.0F, 1.0F, 0.0F);
 	matrix_upload();
-	kv6_render_occlusion_test(&model_playerhead, p->team);
+	kv6_render(&model_playerhead, p->team);
 	matrix_pop(matrix_model);
 
 	matrix_push(matrix_model);
@@ -955,7 +995,7 @@ void player_render_occlusion_test(struct Player* p, int id) {
 	matrix_pointAt(matrix_model, ox, 0.0F, oz);
 	matrix_rotate(matrix_model, 90.0F, 0.0F, 1.0F, 0.0F);
 	matrix_upload();
-	kv6_render_occlusion_test(torso, p->team);
+	kv6_render(torso, p->team);
 	matrix_pop(matrix_model);
 
 	if(gamestate.gamemode_type == GAMEMODE_CTF
@@ -979,7 +1019,7 @@ void player_render_occlusion_test(struct Player* p, int id) {
 			t = TEAM_1;
 		if(gamestate.gamemode.ctf.team_2_intel && gamestate.gamemode.ctf.team_2_intel_location.held.player_id == id)
 			t = TEAM_2;
-		kv6_render_occlusion_test(&model_intel, t);
+		kv6_render(&model_intel, t);
 		matrix_pop(matrix_model);
 	}
 
@@ -993,7 +1033,7 @@ void player_render_occlusion_test(struct Player* p, int id) {
 	matrix_rotate(matrix_model, 45.0F * foot_function(p) * a, 1.0F, 0.0F, 0.0F);
 	matrix_rotate(matrix_model, 45.0F * foot_function(p) * b, 0.0F, 0.0F, 1.0F);
 	matrix_upload();
-	kv6_render_occlusion_test(leg, p->team);
+	kv6_render(leg, p->team);
 	matrix_pop(matrix_model);
 
 	matrix_push(matrix_model);
@@ -1006,7 +1046,7 @@ void player_render_occlusion_test(struct Player* p, int id) {
 	matrix_rotate(matrix_model, -45.0F * foot_function(p) * a, 1.0F, 0.0F, 0.0F);
 	matrix_rotate(matrix_model, -45.0F * foot_function(p) * b, 0.0F, 0.0F, 1.0F);
 	matrix_upload();
-	kv6_render_occlusion_test(leg, p->team);
+	kv6_render(leg, p->team);
 	matrix_pop(matrix_model);
 
 	matrix_push(matrix_model);
@@ -1019,29 +1059,29 @@ void player_render_occlusion_test(struct Player* p, int id) {
 		matrix_rotate(matrix_model, 45.0F, 1.0F, 0.0F, 0.0F);
 
 	matrix_upload();
-	kv6_render_occlusion_test(&model_playerarms, p->team);
+	kv6_render(&model_playerarms, p->team);
 
 	matrix_translate(matrix_model, -3.5F * 0.1F + 0.01F, 0.0F, 10 * 0.1F);
 
 	matrix_upload();
 	switch(p->held_item) {
-		case TOOL_SPADE: kv6_render_occlusion_test(&model_spade, p->team); break;
+		case TOOL_SPADE: kv6_render(&model_spade, p->team); break;
 		case TOOL_BLOCK:
 			model_block.red = p->block.red / 255.0F;
 			model_block.green = p->block.green / 255.0F;
 			model_block.blue = p->block.blue / 255.0F;
-			kv6_render_occlusion_test(&model_block, p->team);
+			kv6_render(&model_block, p->team);
 			break;
 		case TOOL_GUN:
 			// matrix_translate(matrix_model, 3.0F*0.1F-0.01F+0.025F,0.25F,-0.0625F);
 			// matrix_upload();
 			switch(p->weapon) {
-				case WEAPON_RIFLE: kv6_render_occlusion_test(&model_semi, p->team); break;
-				case WEAPON_SMG: kv6_render_occlusion_test(&model_smg, p->team); break;
-				case WEAPON_SHOTGUN: kv6_render_occlusion_test(&model_shotgun, p->team); break;
+				case WEAPON_RIFLE: kv6_render(&model_semi, p->team); break;
+				case WEAPON_SMG: kv6_render(&model_smg, p->team); break;
+				case WEAPON_SHOTGUN: kv6_render(&model_shotgun, p->team); break;
 			}
 			break;
-		case TOOL_GRENADE: kv6_render_occlusion_test(&model_grenade, p->team); break;
+		case TOOL_GRENADE: kv6_render(&model_grenade, p->team); break;
 	}
 
 	vec4 v = {0.1F, 0, -0.3F, 1};
@@ -1058,6 +1098,14 @@ void player_render_occlusion_test(struct Player* p, int id) {
 	p->casing_dir.z = v[2] - v2[2];
 
 	matrix_pop(matrix_model);
+	glUseProgram(0);
+	
+	if (is_outline) {
+		glLineWidth(1);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glPolygonOffset(0, 0);
+		glDisable(GL_POLYGON_OFFSET_LINE);
+	}
 }
 
 int player_clipbox(float x, float y, float z) {
