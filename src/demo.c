@@ -13,10 +13,12 @@ struct Demo CurrentDemo;
 static const struct Demo ResetStruct;
 
 FILE* create_demo_file(char server_name[64]) {
-	time_t current_time = time(NULL);
-	char* str_time = ctime(&current_time);
-
-	char file_name[100] = ""; // demos_dir+Server_name(-)+str_time+extension
+	char file_name[128];
+	
+	time_t demo_time;
+	time(&demo_time);
+	struct tm* tm_info = localtime(&demo_time);
+	strftime(file_name, sizeof(file_name), "demos/%Y-%m-%d_%H-%M-%S_", tm_info);
 
 	char* p_char = strchr(server_name, '/');
 	while (p_char!=NULL) {
@@ -24,20 +26,21 @@ FILE* create_demo_file(char server_name[64]) {
 		p_char = strchr(server_name, '/');
 	}
 
-	strcat(file_name, "demos/");
 	strncat(file_name, server_name, 64);
-	strcat(file_name, " ");
-	strncat(file_name, str_time, 24);
-	strcat(file_name, ".dem");
+	strcat(file_name, ".demo");
 
 	FILE* file;
 	file = fopen(file_name, "wb");
+	
 	// aos_replay version + 0.75 version
 	unsigned char value = 1;
 	fwrite(&value, sizeof(value), 1, file);
 
 	value = 3;
 	fwrite(&value, sizeof(value), 1, file);	
+	
+	if (file == NULL)
+		log_info("Demo failed to create file");
 
 	return file;
 }
@@ -46,7 +49,7 @@ void register_demo_packet(ENetPacket *packet) {
 	if (!CurrentDemo.fp)
 		return;
 
-	float c_time = time(NULL)-CurrentDemo.start_time;
+	float c_time = window_time()-CurrentDemo.start_time;
 	unsigned short len = packet->dataLength;
 
 	fwrite(&c_time, sizeof(c_time), 1, CurrentDemo.fp);
@@ -58,7 +61,8 @@ void register_demo_packet(ENetPacket *packet) {
 
 void demo_start_record(char server_name[64]) {
 	CurrentDemo.fp = create_demo_file(server_name);
-	CurrentDemo.start_time = time(NULL);
+	CurrentDemo.start_time = window_time();
+	log_info("Demo Recording started.");
 }
 
 void demo_stop_record() {
@@ -66,4 +70,5 @@ void demo_stop_record() {
 		fclose(CurrentDemo.fp);
 
 	CurrentDemo = ResetStruct;
+	log_info("Demo Recording ended.");
 }
