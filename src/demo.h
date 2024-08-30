@@ -6,7 +6,7 @@ struct Demo {
 	float start_time;
 };
 
-FILE* create_demo_file(char server_name[64]);
+FILE* create_demo_file();
 void register_demo_packet(ENetPacket *packet);
-void demo_start_record(char server_name[64]);
+void demo_start_record();
 void demo_stop_record();

@@ -12,22 +12,13 @@ Demo recording compatible with aos_replay (https://github.com/BR-/aos_replay)
 struct Demo CurrentDemo;
 static const struct Demo ResetStruct;
 
-FILE* create_demo_file(char server_name[64]) {
+FILE* create_demo_file() {
 	char file_name[128];
 	
 	time_t demo_time;
 	time(&demo_time);
 	struct tm* tm_info = localtime(&demo_time);
-	strftime(file_name, sizeof(file_name), "demos/%Y-%m-%d_%H-%M-%S_", tm_info);
-
-	char* p_char = strchr(server_name, '/');
-	while (p_char!=NULL) {
-		server_name[p_char-server_name] = ' ';
-		p_char = strchr(server_name, '/');
-	}
-
-	strncat(file_name, server_name, 64);
-	strcat(file_name, ".demo");
+	strftime(file_name, sizeof(file_name), "demos/%Y-%m-%d_%H-%M-%S.demo", tm_info);
 
 	FILE* file;
 	file = fopen(file_name, "wb");
@@ -59,8 +50,8 @@ void register_demo_packet(ENetPacket *packet) {
 }
 
 
-void demo_start_record(char server_name[64]) {
-	CurrentDemo.fp = create_demo_file(server_name);
+void demo_start_record() {
+	CurrentDemo.fp = create_demo_file();
 	CurrentDemo.start_time = window_time();
 	log_info("Demo Recording started.");
 }
