@@ -764,7 +764,7 @@ int main(int argc, char** argv) {
 		} else {
 			log_info("Connection to %s successful", argv[1] + 1);
 			if (settings.auto_demo_record)
-				demo_start_record(argv[1]+7);
+				demo_start_record();
 			hud_change(&hud_ingame);
 		}
 	}

@@ -2083,7 +2083,7 @@ static void server_c(char* address, char* name) {
 	} else {
 		window_title(name);
 		if (settings.auto_demo_record)
-			demo_start_record(name);
+			demo_start_record();
 		if(name && address) {
 			rpc_setv(RPC_VALUE_SERVERNAME, name);
 			rpc_setv(RPC_VALUE_SERVERURL, address);
