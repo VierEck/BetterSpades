@@ -285,13 +285,19 @@ void player_update(float dt, int locked) {
 				player_move(&players[k], dt, k);
 			} else {
 				if(k != local_player_id) {
-					// smooth out player orientation
-					players[k].orientation_smooth.x = players[k].orientation_smooth.x * pow(0.9F, dt * 60.0F)
-						+ players[k].orientation.x * pow(0.1F, dt * 60.0F);
-					players[k].orientation_smooth.y = players[k].orientation_smooth.y * pow(0.9F, dt * 60.0F)
-						+ players[k].orientation.y * pow(0.1F, dt * 60.0F);
-					players[k].orientation_smooth.z = players[k].orientation_smooth.z * pow(0.9F, dt * 60.0F)
-						+ players[k].orientation.z * pow(0.1F, dt * 60.0F);
+					if (settings.orientation_smoothing) {
+						// smooth out player orientation
+						players[k].orientation_smooth.x = players[k].orientation_smooth.x * pow(0.9F, dt * 60.0F)
+							+ players[k].orientation.x * pow(0.1F, dt * 60.0F);
+						players[k].orientation_smooth.y = players[k].orientation_smooth.y * pow(0.9F, dt * 60.0F)
+							+ players[k].orientation.y * pow(0.1F, dt * 60.0F);
+						players[k].orientation_smooth.z = players[k].orientation_smooth.z * pow(0.9F, dt * 60.0F)
+							+ players[k].orientation.z * pow(0.1F, dt * 60.0F);
+					} else {
+						players[k].orientation_smooth.x = players[k].orientation.x;
+						players[k].orientation_smooth.y = players[k].orientation.y;
+						players[k].orientation_smooth.z = players[k].orientation.z;
+					}
 				}
 			}
 		}

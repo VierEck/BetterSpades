@@ -89,6 +89,7 @@ void config_save() {
 	config_seti("client", "chat_shadow", settings.chat_shadow);
 	config_seti("client", "show_player_arms", settings.player_arms);
 	config_seti("client", "auto_demo_record", settings.auto_demo_record);
+	config_seti("client", "orientation_smoothing", settings.orientation_smoothing);
 
 	for(int k = 0; k < list_size(&config_keys); k++) {
 		struct config_key_pair* e = list_get(&config_keys, k);
@@ -165,6 +166,8 @@ static int config_read_key(void* user, const char* section, const char* name, co
 			settings.player_arms = atoi(value);
 		} else if(!strcmp(name, "auto_demo_record")) {
 			settings.auto_demo_record = atoi(value);
+		} else if(!strcmp(name, "orientation_smoothing")) {
+			settings.orientation_smoothing = atoi(value);
 		}
 	}
 	if(!strcmp(section, "controls")) {
@@ -602,11 +605,20 @@ void config_reload() {
 			 });
 	list_add(&config_settings,
 			 &(struct config_setting) {
-			 	.value = &settings_tmp.auto_demo_record,
-			 	.type = CONFIG_TYPE_INT,
-			 	.min = 0,
-			 	.max = 1,
-			 	.name = "Auto demo recording",
-			 	.help = "Record demos automatically",
+				 .value = &settings_tmp.auto_demo_record,
+				 .type = CONFIG_TYPE_INT,
+				 .min = 0,
+				 .max = 1,
+				 .name = "Auto demo recording",
+				 .help = "Record demos automatically",
+			 });
+	list_add(&config_settings,
+			 &(struct config_setting) {
+				 .value = &settings_tmp.orientation_smoothing,
+				 .type = CONFIG_TYPE_INT,
+				 .min = 0,
+				 .max = 1,
+				 .name = "orientation smoothing",
+				 .help = "Displays smooth aim",
 			 });
 }
