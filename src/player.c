@@ -640,7 +640,47 @@ void player_collision(const struct Player* p, Ray* ray, struct player_intersecti
 void player_render(struct Player* p, int id) {
 	kv6_calclight(p->pos.x, p->pos.y, p->pos.z);
 
-	if(camera_mode == CAMERAMODE_SPECTATOR && p->team != TEAM_SPECTATOR && !cameracontroller_bodyview_mode) {
+	if(camera_mode == CAMERAMODE_SPECTATOR && id != local_player_id) {
+ 		float c_x = camera_x;
+ 		float c_y = camera_y;
+ 		float c_z = camera_z;
+ 		int ignore_id = local_player_id;
+ 
+ 		if(cameracontroller_bodyview_mode && player_can_spectate(&players[cameracontroller_bodyview_player])) {
+ 			struct Player* bodyview_player = &players[cameracontroller_bodyview_player];
+ 			c_x = bodyview_player->pos.x;
+ 			c_y = bodyview_player->pos.y;
+ 			c_z = bodyview_player->pos.z;
+ 
+ 			ignore_id = cameracontroller_bodyview_player;
+ 		}
+ 
+ 		float lf[3];
+ 		lf[0] = p->physics.eye.x-c_x;
+ 		lf[1] = p->physics.eye.y-c_y;
+ 		lf[2] = p->physics.eye.z-c_z;
+ 
+ 		float mag = sqrt(lf[0]*lf[0]
+ 						+ lf[1]*lf[1]
+ 						+ lf[2]*lf[2]);
+ 
+ 		float n_v[3];
+ 		n_v[0]=lf[0]/mag;
+ 		n_v[1]=lf[1]/mag;
+ 		n_v[2]=lf[2]/mag;
+ 
+ 		struct Camera_HitType hit;
+ 		camera_hit(&hit, ignore_id, c_x,
+ 				  c_y, c_z, n_v[0],n_v[1],n_v[2], 128.0F);
+ 
+ 		if(hit.type == CAMERA_HITTYPE_PLAYER) {
+ 			p->is_visible = 1;
+ 		} else {
+ 			p->is_visible = 0;
+ 		}
+ 	}
+ 
+ 	if(camera_mode == CAMERAMODE_SPECTATOR && p->team != TEAM_SPECTATOR) {
 		matrix_push(matrix_model);
 		matrix_translate(matrix_model, p->pos.x, p->physics.eye.y + player_height(p) + 1.25F, p->pos.z);
 		matrix_rotate(matrix_model, camera_rot_x / PI * 180.0F + 180.0F, 0.0F, 1.0F, 0.0F);
@@ -648,18 +688,47 @@ void player_render(struct Player* p, int id) {
 		matrix_scale(matrix_model, 1.0F / 92.0F, 1.0F / 92.0F, 1.0F / 92.0F);
 		matrix_upload();
 
-		switch(p->team) {
-			case TEAM_1: glColor3ub(gamestate.team_1.red, gamestate.team_1.green, gamestate.team_1.blue); break;
-			case TEAM_2: glColor3ub(gamestate.team_2.red, gamestate.team_2.green, gamestate.team_2.blue); break;
-		}
+		float t_color[3];
+ 		if (p->team == TEAM_1) {
+ 			t_color[0] = gamestate.team_1.red;
+ 			t_color[1] = gamestate.team_1.green;
+ 			t_color[2] = gamestate.team_1.blue;
+ 		} else {
+ 			t_color[0] = gamestate.team_2.red;
+ 			t_color[1] = gamestate.team_2.green;
+ 			t_color[2] = gamestate.team_2.blue;
+ 		}
+ 
+ 		if (!p->is_visible)
+ 		{
+ 			t_color[0] *= 0.2;
+ 			t_color[1] *= 0.2;
+ 			t_color[2] *= 0.2;
+ 		}
 
-		font_select(FONT_FIXEDSYS);
-		glEnable(GL_ALPHA_TEST);
-		glAlphaFunc(GL_GREATER, 0.5F);
+		glColor3ub(t_color[0],t_color[1],t_color[2]);
 		glDisable(GL_DEPTH_TEST);
+		font_select(FONT_FIXEDSYS);
 		font_centered(0, 0, 64, p->name);
-		glEnable(GL_DEPTH_TEST);
-		glDisable(GL_ALPHA_TEST);
+		
+		if (!p->is_visible){
+ 			int wh_color = glx_shader(
+ 			"void main(){\n"
+ 			"gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;\n"
+ 			"}",
+ 
+ 			"uniform vec3 t_color;\n"
+ 			"void main(){\n"
+ 			"gl_FragColor = vec4(t_color, 1.0);\n"
+ 			"}"
+ 			);
+ 			glUseProgram(wh_color);
+ 			t_color[0] = t_color[0]/255.f;
+ 			t_color[1] = t_color[1]/255.f;
+ 			t_color[2] = t_color[2]/255.f;
+ 			glUniform3f(glGetUniformLocation(wh_color, "t_color"), t_color[0],t_color[1],t_color[2]);
+ 		}
+		
 		matrix_pop(matrix_model);
 		matrix_upload();
 	}
@@ -861,6 +930,7 @@ void player_render(struct Player* p, int id) {
 	p->casing_dir.y = v[1] - v2[1];
 	p->casing_dir.z = v[2] - v2[2];
 
+	glUseProgram(0);
 	matrix_pop(matrix_model);
 }
 
