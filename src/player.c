@@ -740,6 +740,7 @@ void player_render(struct Player* p, int id) {
 
 	if(!p->alive) {
 		if(id != local_player_id || camera_mode != CAMERAMODE_DEATH) {
+			glUseProgram(0);
 			matrix_push(matrix_model);
 			matrix_translate(matrix_model, p->pos.x, p->pos.y + 0.25F, p->pos.z);
 			matrix_pointAt(matrix_model, ox, 0.0F, oz);
