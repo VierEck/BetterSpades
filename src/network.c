@@ -938,7 +938,7 @@ void network_send(int id, void* data, int len) {
 		ENetPacket* packet = enet_packet_create(network_send_tmp, len + 1, ENET_PACKET_FLAG_RELIABLE);
 		enet_peer_send(peer, 0, packet);
 
-		if(settings.auto_demo_record)
+		if(settings.auto_demo_record && demo_is_server_omited_packet(id))
 			register_demo_packet(packet);
 	}
 }
