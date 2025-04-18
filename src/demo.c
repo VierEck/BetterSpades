@@ -8,6 +8,7 @@ Demo recording compatible with aos_replay (https://github.com/BR-/aos_replay)
 #include "string.h"
 #include "enet/enet.h"
 #include "window.h"
+#include "network.h"
 
 struct Demo CurrentDemo;
 static const struct Demo ResetStruct;
@@ -62,4 +63,15 @@ void demo_stop_record() {
 
 	CurrentDemo = ResetStruct;
 	log_info("Demo Recording ended.");
+}
+
+bool demo_is_server_omited_packet(int id) {
+	int omited_ids[] = { 
+		PACKET_INPUTDATA_ID, PACKET_WEAPONINPUT_ID, PACKET_SETTOOL_ID, 
+		PACKET_SETCOLOR_ID, PACKET_WEAPONRELOAD_ID, 
+	};
+	for (int i = 0; i < sizeof(omited_ids) / sizeof(int); i++)
+		if (omited_ids[i] == id)
+			return true;
+	return false;
 }
